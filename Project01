@@ -1,0 +1,122 @@
+----
+#Title: Adventurer
+#Author: Arman Madani
+#Date: October 24, 2015
+----
+  
+library(readr)
+library(stringr)
+library(ggplot2)
+
+#Data Objects
+#1.1 Data Frame "cars"
+car_names<-c('mazda3', 'civic', 'focus', 'prius', 'a6quattro', 'tacoma', 'camaro', 'challenger')
+speed<-c('city', 'hwy')
+mpg<-c(30, 41, 31, 41, 29, 40, 53,46, 18, 28, 17, 21, 16, 24, 14, 23)
+cars<- data.frame("car"= rep(car_names, each=2), "speed"=speed, "mpg"=mpg)
+
+#1.2 Matrix "dists"
+url='https://raw.githubusercontent.com/gastonstat/stat133/master/datasets/distances.csv'
+distances<-read.csv(file=url, row.names=1, comment.char='#')
+distances.df<-as.data.frame(distances)
+dist<-as.matrix(distances)
+
+#1.3 List "dat"
+dat<-list("cars"=cars, "dists"=dist)
+dat$cars
+dat$dist
+
+#Functions
+#2.1 Main and Auxiliary Functions
+#Auxiliary Function 1: get_distance
+cities<-c("Berkeley", "SanFrancisco", "Oakland", "PaloAlto", "SanMateo", "Hayward", "Richmond")
+get_distance<-function(dest.cities, city=cities, dist.matrix=dat$dists) {
+  total<-0.0
+  for (i in 1:(length(dest.cities)-1)) {
+    x<-which(city==dest.cities[i])
+    y<-which(city==dest.cities[i+1])
+    total<-dist.matrix[x, y]+total
+  }
+  return(total)
+}
+#Test of get_distance
+get_distance(c("PaloAlto", "SanMateo", "Richmond", "Berkeley"))
+
+#Auxiliary Function 2: get_mpg
+get_mpg<-function(type.car, type.speed, cars.df=cars) {
+  car.mpg<-as.numeric(subset(cars.df, car==type.car & speed==type.speed, select="mpg"))
+  return(car.mpg)
+}
+#Test of get_mpg
+get_mpg("a6quattro", "hwy")
+
+#Auxiliary Function 3: get_cost
+get_cost<-function(distance, consumption, price.gas) {
+  cost<-(price.gas/consumption)*distance
+  return(cost)
+}
+#Test of get_cost
+get_cost(52, 21, 3.07)
+
+#Final Function: trip_cost
+trip_cost <- function(vec.city, auto, city.hwy, price, data=dat) {
+  distance<-get_distance(vec.city)
+  consumption<-get_mpg(auto, city.hwy)
+  trip.cost<-get_cost(distance, consumption, price)
+  return(trip.cost)
+}
+#Test of trip_cost
+trip_cost(c("Berkeley", "SanFrancisco", "Oakland"), "mazda3", "city", 3.07)
+
+#2.2 Random Trip
+random_trip<-function(size=2) {
+  if (size < 2) {
+    stop("Size cannot be < 2")
+  }
+  random_sample<-sample(rownames(dist), size, replace=FALSE)
+  return(random_sample)
+}
+#Tests of random_trip
+random_trip()
+random_trip(5)
+random_trip(1)
+random_trip(8)
+
+#Data Visualization
+#3.1 Weekly Prices
+gas_prices_2015<-read.csv('https://raw.githubusercontent.com/gastonstat/stat133/master/datasets/gas_prices_2015.csv')
+gas.prices<- function(prices=gas_prices_2015) {
+  gas.price.df<-as.data.frame(prices[seq(from=1, to=ncol(prices), by=2)])
+  output<-c()
+  for (i in 1:nrow(prices)) {
+    output<-append(output, as.numeric(gas.price.df[i, -1]))
+    output<-output[!is.na(output)]
+  }
+  return(output)
+}
+#Test of gas.prices
+gas.prices() 
+
+#3.2 Weekly Costs
+weekly.cost<-function(city, car, speed) {
+  weekly_cost<-trip_cost(city, car, speed, price=gas.prices())
+  return(weekly_cost)
+}
+#Test of weekly.cost
+weekly.cost(c("Berkeley", "PaloAlto"), "prius", "city") #Highest MPG
+weekly.cost(c("Berkeley", "PaloAlto"), "challenger", "city") #Lowest MPG
+weekly.cost(c("Berkeley", "PaloAlto"), "civic", "city") #My Car
+
+#3.3 Time Line Plot
+civic.trip<-as.data.frame(weekly.cost(c("Berkeley", "PaloAlto"), "civic", "city"))
+weeks<-as.numeric(row(civic.trip))
+ggplot(data=civic.trip, aes(x=weeks, y=civic.trip[ , 1])) +
+  scale_x_continuous(breaks=seq(min(weeks), max(weeks), 2)) +
+  geom_point(aes(color="#EOFFFF")) +
+  geom_line(aes(color="#008080")) +
+  xlab("Weeks (Jan-Sep 2015)") +
+  ylab("Cost of Fuel (USD)") +
+  theme_minimal() +
+  theme(legend.position="none") +
+  theme(axis.line = element_line(colour="#000000")) +
+  ggtitle("Weekly Fuel Cost: Berkeley to Palo Alto, Honda Civic (City)")
