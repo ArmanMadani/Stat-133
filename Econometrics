@@ -1,0 +1,62 @@
+---
+title: "Econometrics Data Analysis"
+author: "Arman Madani"
+date: "October 27, 2015"
+---
+```{r}
+library(ggplot2)
+library(readr)
+```
+
+1.) Growth Data Regression
+
+```{r}
+growth.data <- read.csv('~/Downloads/growthdata.csv') 
+growth <- growth.data$growth #Measure of annual percentage growth in real GDP from 1960-1995
+tradeshr <- growth.data$tradeshr #Tradeshr = (Imports + Exports)/GDP
+oil <- growth.data$oil #Whether or not this country exports oil (Bernoulli)
+school60 <- growth.data$school60 #Average years of schooling
+school60_2 <- school60^2
+```
+
+```{r, echo=TRUE}
+regression.growth = lm(growth ~ tradeshr + oil + school60)
+summary(regression.growth)
+```
+
+2.) Individual Consumption Behavior Regression
+```{r}
+CES <- read.csv('~/Downloads/CEShw4.csv')
+ExpPC<-CES$TOTEXPPQ/CES$FAM_SIZE
+FoodShare <- CES$FOODPQ/CES$TOTEXPPQ
+lnFamSize <- log(CES$FAM_SIZE)
+lnExpPC <- log(ExpPC)
+CES$ExpPC <- c(ExpPC)
+CES$FoodShare <- c(FoodShare)
+CES$FoodShare <- c(FoodShare)
+CES$lnFamSize <- c(lnFamSize)
+CES$lnExpPC <- c(lnExpPC)
+```
+
+Scatterplot for FoodShare vs ExpPC
+
+```{r, echo= TRUE}
+ggplot(data=CES, aes(x=CES$ExpPC, y=CES$FoodShare)) +
+    geom_point() + xlab("ExpPC") + ylab("FoodShare") + geom_smooth(method=lm)
+#Scatterplot for FoodShare vs Family Size
+ggplot(data=CES, aes(x=CES$FAM_SIZE, y=CES$FoodShare)) +
+  geom_point() + xlab("Family Size") + ylab("FoodShare") + geom_smooth(method=lm)
+#Scatterplot for FoodShare vs. lnExpPC
+ggplot(data=CES, aes(x=CES$lnExpPC, y=CES$FoodShare)) +
+  geom_point() + xlab("lnExpPC") + ylab("FoodShare") + geom_smooth(method=lm)
+#Scatterplot for FoodShare vs. lnFamSize
+ggplot(data=CES, aes(x=CES$lnFamSize, y=CES$FoodShare)) +
+  geom_point() + xlab("ln(Family Size)") + ylab("FoodShare") + geom_smooth(method=lm)
+```
+
+```{r, echo = TRUE}
+TotExp3000 <- CES[which(CES$TOTEXPPQ <= 3000), ] #Total Expenditures Less Than or Equal to $3000
+reg.poverty = lm(TotExp3000$FoodShare ~ TotExp3000$lnFamSize + TotExp3000$lnExpPC + 
+    TotExp3000$FractEarners + TotExp3000$RatioOver64 + TotExp3000$RatioLess18)
+summary(reg.poverty)
+```
