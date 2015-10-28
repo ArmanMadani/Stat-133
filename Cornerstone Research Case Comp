@@ -1,0 +1,233 @@
+#### read in data ####
+organica = read.csv('~/Downloads/07. Organica Sales Data.csv')
+cart = read.csv('~/Downloads/08. Cart-a-holic Sales Data.csv')
+grocerit = read.csv('~/Downloads/09. Grocerit Sales Data.csv')
+survey = read.csv('~/Downloads/10. Survey Results (1).csv')
+#### master list of sales data ####
+
+master.list = rbind(organica, cart, grocerit)
+#### Attach Survey Results to masterlist ####
+master.list$freq2014 = numeric(nrow(master.list)) 
+master.list$org2014 = numeric(nrow(master.list))
+for(i in 1:length(master.list$city)){
+  master.list$freq2014[i] = survey$Frequency[which(survey$City==master.list$city[i])]
+  master.list$org2014[i] = survey$Organics[which(survey$City==master.list$city[i])]
+  master.list$inc2014[i] = survey$Income[which(survey$City==master.list$city[i])]
+  master.list$ed2014[i] = survey$Education[which(survey$City==master.list$city[i])]
+  master.list$population[i] = survey$Population[which(survey$City==master.list$city[i])]
+}
+
+#### prices for ($50 $100 $200) order ####
+master.list$p50 = master.list$fee+(50*(1+master.list$markup))
+master.list$p100 = master.list$fee+(100*(1+master.list$markup))
+master.list$p200 = master.list$fee+(200*(1+master.list$markup))
+
+#### Generate Indicator Variables ####
+master.list$one.co = logical(length(master.list$date))
+master.list$two.co = logical(length(master.list$date))
+master.list$three.co = logical(length(master.list$date))
+master.list$which.co.1 = character(length(master.list$date))
+master.list$which.co.2 = character(length(master.list$date))
+master.list$which.co.3 = character(length(master.list$date))
+for(d in unique(master.list$date)){
+  for(city in unique(master.list$city[master.list$date == d])){
+    if(length(unique(master.list$company[master.list$date == d & master.list$city == city]))==3){
+      master.list$three.co[master.list$date == d & master.list$city == city] = TRUE
+    }
+    if(length(unique(master.list$company[master.list$date == d & master.list$city == city]))==2){
+      master.list$two.co[master.list$date == d & master.list$city == city] = TRUE
+    }
+    if(length(unique(master.list$company[master.list$date == d & master.list$city == city]))==1){
+      master.list$one.co[master.list$date == d & master.list$city == city] = TRUE
+    }
+    master.list$which.co.1[master.list$date == d & master.list$city == city] = as.character(unique(master.list$company[master.list$date == d & master.list$city == city])[1])
+    if(length(unique(master.list$company[master.list$date == d & master.list$city == city]))>1){
+      master.list$which.co.2[master.list$date == d & master.list$city == city] = as.character(unique(master.list$company[master.list$date == d & master.list$city == city])[2])
+    }
+    if(length(unique(master.list$company[master.list$date == d & master.list$city == city]))>2){
+      master.list$which.co.3[master.list$date == d & master.list$city == city] = as.character(unique(master.list$company[master.list$date == d & master.list$city == city])[3])
+    }
+  } 
+}
+
+#### generate list where each element is sales data for a whole city ####
+
+o.cities = unique(as.character(organica$city))
+c.cities = unique(as.character(cart$city))
+g.cities = unique(as.character(grocerit$city))
+
+tot.cities = unique(c(o.cities, c.cities, g.cities))
+
+by.city = function(company, place){
+  x = company[company$city == place,]
+  return(x)
+}
+
+parse.cities = function(c1 = organica, c2 = cart, c3 = grocerit, cities = tot.cities){
+  by.city.list = list()
+  for(each in tot.cities){
+    c1.each = by.city(c1, each)
+    c2.each = by.city(c2, each)
+    c3.each = by.city(c3, each)
+    all.each = rbind(c1.each, c2.each, c3.each)
+    by.city.list[[which(tot.cities==each)]] = all.each
+  }
+  return(by.city.list)
+}
+
+by.city.list = parse.cities()
+#### average amount paid per order ####
+organica$avgperorder = organica$revenue/organica$orders
+cart$avgperorder = cart$revenue/cart$orders
+grocerit$avgperorder = grocerit$revenue/grocerit$orders
+master.list$avgperorder = master.list$revenue/master.list$orders
+
+#### profits ####
+organica$profit = organica$revenue*organica$margin
+cart$profit = cart$revenue*cart$margin
+grocerit$profit = grocerit$revenue*grocerit$margin
+master.list$profit = master.list$revenue*master.list$margin
+#### all grocers with whom the delivery firms work ####
+
+all.stores.l = sapply(by.city.list, function(x){
+  y = unique(x$stores)
+  return(y)
+})
+all.stores.all = character()
+for(i in 1:length(all.stores.l)){
+  all.stores.all = c(all.stores.all, as.character(all.stores.l[[i]]))
+}
+all.stores = unique(all.stores.all)
+
+#### Generate bigbox ####
+
+master.list$bigbox = logical(length(master.list$date))
+spec = all.stores[1:3]
+bigb = all.stores[4:6]
+for(gro in 1:length(master.list$stores)){
+  if(sum(master.list$stores[gro]==bigb)==1){
+    master.list$bigbox[gro] = TRUE
+  }
+}
+
+#### Market size and market share for each period ####
+
+rev.date = function(company.df){
+  date.num = as.numeric(gsub("Q", "", as.character(company.df$date)))
+  u.date = sort(unique(date.num))
+  x = numeric(length(u.date))
+  i = 1
+  for(each in u.date){
+    y = company.df[which(date.num == each),]
+    rev = sum(y$revenue)
+    x[i] = rev
+    i = i+1
+  }
+  return(x)
+}
+
+revenue = matrix(seq(1, 16), 1, 16)
+revenue = rbind(revenue, rev.date(master.list))
+revenue = rbind(revenue, rev.date(organica))
+revenue = rbind(revenue, rev.date(cart))
+revenue = rbind(revenue, rev.date(grocerit))
+colnames(revenue) = unique(master.list$date)
+rownames(revenue) = c("Period", "Total Sales", "Organica Sales", "Cart-a-holic Sales", "Grocerit Sales")
+rev.p = apply(revenue, 2, function(x){
+    x[2:5] = x[2:5]/x[2]
+  })
+#### Industry Profits by Period####
+prof.date = function(company.df){
+  date.num = as.numeric(gsub("Q", "", as.character(company.df$date)))
+  u.date = sort(unique(date.num))
+  x = numeric(length(u.date))
+  i = 1
+  for(each in u.date){
+    y = company.df[which(date.num == each),]
+    prof = sum(y$profit)
+    x[i] = prof
+    i = i+1
+  }
+  return(x)
+}
+
+profit = matrix(seq(1, 16), 1, 16)
+profit = rbind(profit, prof.date(master.list))
+profit = rbind(profit, prof.date(organica))
+profit = rbind(profit, prof.date(cart))
+profit = rbind(profit, prof.date(grocerit))
+colnames(profit) = unique(master.list$date)
+rownames(profit) = c("Period", "Total Sales", "Organica Sales", "Cart-a-holic Sales", "Grocerit Sales")
+prof.p = apply(profit, 2, function(x){
+  x[2:5] = x[2:5]/x[2]
+})
+
+
+#### total revenue by city for all time periods ####
+totrev = sapply(by.city.list, function(x){
+  y = sum(x$revenue)
+})
+
+totrev.city = data.frame(tot.cities, totrev)
+tr.city.r = totrev.city[order(totrev),]
+
+#### Austin and Houston ####
+austin = by.city.list[[8]]
+houston = by.city.list[[13]]
+aust.rev = sum(austin$revenue)
+aust.o.rev = sum(austin$revenue[1:34])
+aust.g.rev = sum(austin$revenue[35:84])
+aust.o.ms.avg = aust.o.rev/aust.rev
+aust.g.ms.avg = aust.g.rev/aust.rev
+houst.rev = sum(houston$revenue)
+houst.c.rev = sum(houston$revenue[1:48])
+houst.g.rev = sum(houston$revenue[49:96])
+houst.c.ms.avg = houst.c.rev/houst.rev
+houst.g.ms.avg = houst.g.rev/houst.rev
+
+aust.wf.sales = sum(austin$revenue[austin$stores == "Whole Foodstuff"])
+o.g.overlap = aust.wf.sales/aust.rev
+
+houst.sales.overlap = sum(austin$revenue[sum(austin$stores == c("Waysafe", "Walco", "Whole Foodstuff"))>0])
+c.g.overlap = houst.sales.overlap/houst.rev
+#### Create more dummy variables ####
+
+master.list$cg = logical(length(master.list$date))
+master.list$oc = logical(length(master.list$date))
+
+for(i in 1:length(master.list$stores)){
+  x = c(master.list$which.co.1[i], master.list$which.co.2[i], master.list$which.co.3[i])
+  x = x[nchar(x)>0]
+  y = unique(master.list$company)
+  if(any(x==y[2])){
+    if(any(x==y[3])){
+      master.list$cg[i] = TRUE
+    } else{
+      if(any(x==y[1])){
+        master.list$oc[i] = TRUE
+      }
+    }
+  }
+}
+
+#### Date and Year ####
+master.list$year = as.numeric(substr(as.character(master.list$date), 1, 4))
+
+#### revenue/100000, orders/10000, order/population ####
+master.list$rev100k = master.list$revenue/100000
+master.list$ord10k = master.list$orders/10000
+
+#### Order and Population Plot ####
+plot(x=master.list$population, y=master.list$orders)
+
+#### Regression ####
+master2012 = master.list[master.list$year>=2012,]
+reg.groc = lm(log(p100)~freq2014+inc2014+bigbox+oc+cg, master2012)
+summary(reg.groc)
+
+### Mkt Share Graph ###
+
+library(ggplot2)
+barplot(height=rev.p[-1,], main="Market Share Breakdown: Quarterly 2011-2014", 
+  xlab="Quarter", ylab="Market Share", las=1, col = c("#66CD00", "#EE3B3B", "#FFFFFF"))
+
