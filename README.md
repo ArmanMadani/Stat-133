@@ -1,2 +1,2 @@
 # Stat-133
-Mainly R, some SQL
+Mainly R, some Unix
